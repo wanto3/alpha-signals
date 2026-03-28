@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const BINANCE_BASE = 'https://api.binance.com/api/v3';
+const BINANCE_BASE = 'https://testnet.binance.vision/api/v3';
 
 const TRACKED_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'XRPUSDT'];
 

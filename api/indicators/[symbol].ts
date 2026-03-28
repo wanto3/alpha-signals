@@ -2,32 +2,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const BINANCE_BASE = 'https://testnet.binance.vision/api/v3';
 
-async function fetchTicker(pair: string) {
-  try {
-    const res = await fetch(`${BINANCE_BASE}/ticker/24hr?symbol=${pair}`, {
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      symbol: string;
-      lastPrice: string;
-      volume: string;
-      quoteVolume: string;
-      priceChangePercent: string;
-    };
-    return {
-      symbol: data.symbol.replace('USDT', ''),
-      price: parseFloat(data.lastPrice),
-      volume24h: parseFloat(data.volume),
-      quoteVolume24h: parseFloat(data.quoteVolume),
-      priceChangePercent: parseFloat(data.priceChangePercent),
-      timestamp: Date.now(),
-    };
-  } catch {
-    return null;
-  }
-}
-
 async function fetchCandles(pair: string, interval = '1h', limit = 200) {
   try {
     const res = await fetch(
@@ -92,10 +66,10 @@ function computeBB(closes: number[], period = 20) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
 
   if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.status(200).end();
     return;
   }
@@ -107,49 +81,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const pair = `${symbol}USDT`;
-  const ticker = await fetchTicker(pair);
-  if (!ticker) {
-    res.status(404).json({ error: 'Symbol not found' });
-    return;
-  }
-
   const interval = (req.query.interval as string) || '1h';
   const limit = Math.min(parseInt(req.query.limit as string) || 200, 500);
 
   const candles = await fetchCandles(pair, interval, limit);
+  if (!candles || candles.length === 0) {
+    res.status(404).json({ error: 'No candle data available for symbol' });
+    return;
+  }
+
+  const closes = candles.map(c => parseFloat(c[4] as unknown as string));
   const indicators: Record<string, number | null> = {
     rsi_14: null, macd_line: null, macd_signal: null, macd_histogram: null,
     bb_upper: null, bb_middle: null, bb_lower: null, sma_20: null,
     ema_12: null, ema_26: null,
   };
 
-  if (candles && candles.length > 0) {
-    const closes = candles.map(c => parseFloat(c[4] as unknown as string));
-    const rsiVal = computeRSI(closes);
-    if (rsiVal !== null) indicators.rsi_14 = rsiVal;
-    const macd = computeMACD(closes);
-    if (macd) {
-      indicators.macd_line = macd.macdLine;
-      indicators.macd_signal = macd.macdSignal;
-      indicators.macd_histogram = macd.histogram;
-    }
-    const bb = computeBB(closes);
-    if (bb) {
-      indicators.bb_upper = bb.upper;
-      indicators.bb_middle = bb.middle;
-      indicators.bb_lower = bb.lower;
-    }
-    if (closes.length >= 20) {
-      indicators.sma_20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-    }
+  const rsiVal = computeRSI(closes);
+  if (rsiVal !== null) indicators.rsi_14 = rsiVal;
+  const macd = computeMACD(closes);
+  if (macd) {
+    indicators.macd_line = macd.macdLine;
+    indicators.macd_signal = macd.macdSignal;
+    indicators.macd_histogram = macd.histogram;
+  }
+  const bb = computeBB(closes);
+  if (bb) {
+    indicators.bb_upper = bb.upper;
+    indicators.bb_middle = bb.middle;
+    indicators.bb_lower = bb.lower;
+  }
+  if (closes.length >= 20) {
+    indicators.sma_20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
   }
 
   res.json({
     data: {
-      ...ticker,
-      ...indicators,
-      interval: '1h',
+      symbol,
+      interval,
       timestamp: Date.now(),
+      ...indicators,
     },
   });
 }
