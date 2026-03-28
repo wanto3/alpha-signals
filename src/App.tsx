@@ -11,7 +11,8 @@ import { IndicatorsPanel } from './components/IndicatorsPanel';
 import { NewsPanel } from './components/NewsPanel';
 import { AlertModal } from './components/AlertModal';
 import { Toast } from './components/Toast';
-import { getMarketCoins, getGlobalData, searchCoins, CoinMarket, GlobalData } from './lib/coingecko';
+import { getMarketCoins, getGlobalData, searchCoins } from './lib/coingecko';
+import type { CoinMarket, GlobalData } from './lib/coingecko';
 
 function Dashboard() {
   const { selectedCoinId, setSelectedCoinId } = useCoin();
@@ -23,7 +24,7 @@ function Dashboard() {
   const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string; symbol: string; thumb: string }>>([]);
   const [alertModalCoin, setAlertModalCoin] = useState<CoinMarket | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([getMarketCoins(1, 50), getGlobalData()])

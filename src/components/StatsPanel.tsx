@@ -1,6 +1,4 @@
-import { useCallback } from 'react';
-import { CoinMarket } from '../lib/coingecko';
-import { GlobalData } from '../lib/coingecko';
+import type { CoinMarket, GlobalData } from '../lib/coingecko';
 import { useFearGreed } from '../hooks/useFearGreed';
 import { RefreshCw } from 'lucide-react';
 
@@ -60,7 +58,6 @@ export function StatsPanel({ coins, globalData }: StatsPanelProps) {
   const marketChange = globalData?.market_cap_change_percentage_24h_usd || 0;
 
   const topCoins = coins.slice(0, 5);
-  const topMcap = topCoins.reduce((s, c) => s + c.market_cap, 0);
 
   return (
     <div className="space-y-6">
