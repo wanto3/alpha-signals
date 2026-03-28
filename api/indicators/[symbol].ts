@@ -1,19 +1,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const BINANCE_BASE = 'https://testnet.binance.vision/api/v3';
-
-async function fetchCandles(pair: string, interval = '1h', limit = 200) {
-  try {
-    const res = await fetch(
-      `${BINANCE_BASE}/klines?symbol=${pair}&interval=${interval}&limit=${limit}`,
-      { signal: AbortSignal.timeout(8000) }
-    );
-    if (!res.ok) return null;
-    return (await res.json()) as number[][];
-  } catch {
-    return null;
-  }
-}
+const COINGECKO_IDS: Record<string, string> = {
+  BTC: 'bitcoin',
+  ETH: 'ethereum',
+  SOL: 'solana',
+  DOGE: 'dogecoin',
+  XRP: 'ripple',
+  LINK: 'chainlink',
+  ADA: 'cardano',
+  ARB: 'arbitrum',
+  MATIC: 'matic-network',
+  AVAX: 'avalanche-2',
+  DOT: 'polkadot',
+  UNI: 'uniswap',
+};
 
 function computeRSI(closes: number[], period = 14): number | null {
   if (closes.length < period + 1) return null;
@@ -80,39 +80,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const pair = `${symbol}USDT`;
-  const interval = (req.query.interval as string) || '1h';
-  const limit = Math.min(parseInt(req.query.limit as string) || 200, 500);
-
-  const candles = await fetchCandles(pair, interval, limit);
-  if (!candles || candles.length === 0) {
-    res.status(404).json({ error: 'No candle data available for symbol' });
+  const coinId = COINGECKO_IDS[symbol];
+  if (!coinId) {
+    res.status(404).json({ error: 'Unsupported symbol' });
     return;
   }
 
-  const closes = candles.map(c => parseFloat(c[4] as unknown as string));
+  // CoinGecko OHLC supports: 1, 7, 14, 30, 90, 180, 365 days
+  // Map interval to CoinGecko days parameter
+  const interval = (req.query.interval as string) || '1d';
+  const daysMap: Record<string, number> = {
+    '1h': 1,
+    '1d': 1,
+    '7d': 7,
+    '14d': 14,
+    '30d': 30,
+  };
+  const days = daysMap[interval] ?? 30;
+
+  const url = `https://api.coingecko.com/api/v3/coins/${coinId}/ohlc?vs_currency=usd&days=${days}`;
+
+  let candles: number[][] = [];
+  try {
+    const resp = await fetch(url, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (resp.ok) {
+      candles = (await resp.json()) as number[][];
+    }
+  } catch {
+    // Fall through to return empty indicators
+  }
+
+  const closes = candles.map(c => c[4]);
   const indicators: Record<string, number | null> = {
     rsi_14: null, macd_line: null, macd_signal: null, macd_histogram: null,
     bb_upper: null, bb_middle: null, bb_lower: null, sma_20: null,
     ema_12: null, ema_26: null,
   };
 
-  const rsiVal = computeRSI(closes);
-  if (rsiVal !== null) indicators.rsi_14 = rsiVal;
-  const macd = computeMACD(closes);
-  if (macd) {
-    indicators.macd_line = macd.macdLine;
-    indicators.macd_signal = macd.macdSignal;
-    indicators.macd_histogram = macd.histogram;
-  }
-  const bb = computeBB(closes);
-  if (bb) {
-    indicators.bb_upper = bb.upper;
-    indicators.bb_middle = bb.middle;
-    indicators.bb_lower = bb.lower;
-  }
-  if (closes.length >= 20) {
-    indicators.sma_20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+  if (closes.length > 0) {
+    const rsiVal = computeRSI(closes);
+    if (rsiVal !== null) indicators.rsi_14 = rsiVal;
+    const macd = computeMACD(closes);
+    if (macd) {
+      indicators.macd_line = macd.macdLine;
+      indicators.macd_signal = macd.macdSignal;
+      indicators.macd_histogram = macd.histogram;
+    }
+    const bb = computeBB(closes);
+    if (bb) {
+      indicators.bb_upper = bb.upper;
+      indicators.bb_middle = bb.middle;
+      indicators.bb_lower = bb.lower;
+    }
+    if (closes.length >= 20) {
+      indicators.sma_20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+    }
   }
 
   res.json({
