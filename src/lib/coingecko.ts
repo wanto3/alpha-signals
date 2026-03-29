@@ -65,3 +65,14 @@ export function getOhlc(coinId: string, days = 7) {
 export function getGlobalData() {
   return fetchWithCache<GlobalData>(`/global`, 300000);
 }
+
+export interface ChartPoint {
+  time: number;
+  value: number;
+}
+
+export function getMarketChart(coinId: string, days = 365) {
+  return fetchWithCache<{ prices: [number, number][]; market_caps: [number, number][]; total_volumes: [number, number][] }>(
+    `/coins/${coinId}/market_chart?vs_currency=usd&days=${days}`, 300000
+  );
+}

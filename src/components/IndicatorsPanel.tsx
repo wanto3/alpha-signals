@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getOhlc } from '../lib/coingecko';
+import { getOhlc, getMarketChart } from '../lib/coingecko';
 import { useCoin } from '../context/CoinContext';
 
 function calculateRSI(closes: number[], period = 14): number[] {
@@ -38,7 +38,11 @@ function calculateSMA(values: number[], period: number): number[] {
   const result: number[] = [];
   for (let i = period - 1; i < values.length; i++) {
     const slice = values.slice(i - period + 1, i + 1);
-    result.push(slice.reduce((a, b) => a + b, 0) / period);
+    const sum = slice.reduce((a, b) => {
+      const n = Number(b);
+      return a + (isNaN(n) ? 0 : n);
+    }, 0);
+    result.push(sum / period);
   }
   return result;
 }
@@ -56,14 +60,45 @@ export function IndicatorsPanel() {
       setLoading(true);
       setSmaValues({ sma20: null, sma50: null, sma200: null });
       try {
-        const data = await getOhlc(selectedCoinId, 365);
-        const closes = data.map(d => d.close);
+        // Try OHLC first, fallback to market chart prices
+        let closes: number[] = [];
+        let chartData: Awaited<ReturnType<typeof getOhlc>> = [];
+        try {
+          chartData = await getOhlc(selectedCoinId, 365);
+          closes = chartData.map(d => {
+            const n = Number(d.close);
+            return isNaN(n) ? 0 : n;
+          });
+        } catch {
+          // OHLC failed, try market chart as fallback
+        }
+
+        // If OHLC didn't return enough data, use market chart
+        if (closes.length < 200) {
+          const chart = await getMarketChart(selectedCoinId, 365);
+          closes = chart.prices.map(([, price]) => {
+            const n = Number(price);
+            return isNaN(n) ? 0 : n;
+          });
+        }
+
+        if (closes.length === 0) return;
+
         const rsiValues = calculateRSI(closes);
         setRsi(rsiValues.slice(-30));
 
         const ema12 = calculateEMA(closes, 12);
         const ema26 = calculateEMA(closes, 26);
-        const macd = closes.map((_, i) => (ema12[i] || 0) - (ema26[i] || 0));
+        // MACD = EMA12 - EMA26. Align them so each MACD value corresponds to the same close.
+        // ema12[i] is the EMA12 at closes[i + (26-12)] = closes[i + 14]
+        // ema26[i] is the EMA26 at closes[i + (26-1)] = closes[i + 25]
+        // So MACD for closes[i] = ema12[i - 14] - ema26[i] (valid when i >= 14)
+        const macdOffset = 26 - 12; // 14
+        const macd: number[] = [];
+        for (let i = 0; i < ema26.length; i++) {
+          const v12 = ema12[i - macdOffset];
+          macd.push(v12 !== undefined && !isNaN(v12) ? v12 - ema26[i] : 0);
+        }
         setMacdLine(macd.slice(-30));
         const signal = calculateEMA(macd, 9);
         setSignalLine(signal);
@@ -72,9 +107,9 @@ export function IndicatorsPanel() {
         const sma50Values = calculateSMA(closes, 50);
         const sma200Values = calculateSMA(closes, 200);
         setSmaValues({
-          sma20: sma20Values.length > 0 ? sma20Values[sma20Values.length - 1] : null,
-          sma50: sma50Values.length > 0 ? sma50Values[sma50Values.length - 1] : null,
-          sma200: sma200Values.length > 0 ? sma200Values[sma200Values.length - 1] : null,
+          sma20: sma20Values.length > 0 && !isNaN(sma20Values[sma20Values.length - 1]) ? sma20Values[sma20Values.length - 1] : null,
+          sma50: sma50Values.length > 0 && !isNaN(sma50Values[sma50Values.length - 1]) ? sma50Values[sma50Values.length - 1] : null,
+          sma200: sma200Values.length > 0 && !isNaN(sma200Values[sma200Values.length - 1]) ? sma200Values[sma200Values.length - 1] : null,
         });
       } catch (e) {
         // silent fail
@@ -172,7 +207,7 @@ export function IndicatorsPanel() {
             <div key={ma.label} className="text-center">
               <p className="text-text-secondary text-xs">{ma.label}</p>
               <p className="font-mono text-sm font-semibold text-text-primary mt-1">
-                {ma.value !== null ? ma.value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '--'}
+                {(ma.value !== null && !isNaN(ma.value)) ? ma.value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '--'}
               </p>
               <p className="text-text-secondary text-xs">SMA</p>
             </div>
