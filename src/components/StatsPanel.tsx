@@ -2,6 +2,15 @@ import type { CoinMarket, GlobalData } from '../lib/coingecko';
 import { useFearGreed } from '../hooks/useFearGreed';
 import { RefreshCw } from 'lucide-react';
 
+const BTC_ATH = 126080; // CoinGecko BTC all-time high
+
+function getAthZone(drawdownPct: number): { label: string; bg: string; text: string; border: string } {
+  if (drawdownPct > 40) return { label: 'Accumulation Zone', bg: 'bg-[#0d3b1e]', text: 'text-[#3fb950]', border: 'border-[#3fb950]/30' };
+  if (drawdownPct > 20) return { label: 'Correction Zone', bg: 'bg-[#3b2e0a]', text: 'text-[#f0883e]', border: 'border-[#f0883e]/30' };
+  if (drawdownPct > 0) return { label: 'Near ATH', bg: 'bg-[#2a2a2a]', text: 'text-[#d29922]', border: 'border-[#d29922]/30' };
+  return { label: 'New ATH', bg: 'bg-[#3b2e10]', text: 'text-[#f0b429]', border: 'border-[#f0b429]/30' };
+}
+
 interface StatsPanelProps {
   coins: CoinMarket[];
   globalData?: GlobalData['data'];
@@ -161,25 +170,64 @@ export function StatsPanel({ coins, globalData }: StatsPanelProps) {
         </div>
       </div>
 
-      {/* Top by Market Cap */}
-      <div className="bg-bg-primary rounded-lg p-3 border border-border-subtle flex flex-col min-w-0">
-        <h3 className="text-text-secondary text-[10px] font-semibold uppercase tracking-wider mb-2">Top by Market Cap</h3>
-        <div className="space-y-1.5 flex-1 overflow-hidden">
-          {topCoins.map((coin, i) => (
-            <div key={coin.id} className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-text-secondary text-[10px] w-3 shrink-0">{i + 1}</span>
-                <img src={coin.image} alt={coin.name} className="w-4 h-4 rounded-full shrink-0" />
-                <span className="text-text-primary text-xs truncate">{coin.symbol.toUpperCase()}</span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={`text-[10px] font-mono ${coin.price_change_percentage_24h >= 0 ? 'text-gain' : 'text-loss'}`}>
-                  {coin.price_change_percentage_24h >= 0 ? '+' : ''}{coin.price_change_percentage_24h?.toFixed(1)}%
+      {/* BTC ATH Drawdown + Top by Market Cap */}
+      <div className="flex flex-col gap-3 min-w-0">
+        {/* BTC ATH Drawdown Card */}
+        {(() => {
+          const btc = coins.find(c => c.id === 'bitcoin');
+          if (!btc) return null;
+          const drawdownPct = ((btc.current_price - BTC_ATH) / BTC_ATH) * 100;
+          const zone = getAthZone(drawdownPct);
+          return (
+            <div className={`rounded-lg p-2 border ${zone.border} ${zone.bg} flex flex-col gap-1`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <img src={btc.image} alt="BTC" className="w-4 h-4 rounded-full" />
+                  <span className="text-text-primary text-xs font-semibold">BTC vs ATH</span>
+                </div>
+                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${zone.text} ${zone.border}`}>
+                  {zone.label}
                 </span>
-                <span className="font-mono text-xs text-text-primary">${(coin.market_cap / 1e9).toFixed(0)}B</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-sm font-bold text-text-primary">
+                  ${btc.current_price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </span>
+                <span className={`font-mono text-[11px] ${drawdownPct >= 0 ? 'text-loss' : 'text-gain'}`}>
+                  {drawdownPct >= 0 ? '' : '+'}{drawdownPct.toFixed(1)}% from ATH
+                </span>
+              </div>
+              {/* ATH reference */}
+              <div className="flex items-center gap-1">
+                <span className="text-text-secondary text-[9px]">ATH</span>
+                <span className="text-text-secondary text-[9px] font-mono">$126,080</span>
+                <span className="text-text-secondary text-[9px] ml-1">·</span>
+                <span className="text-text-secondary text-[9px]">{Math.abs(drawdownPct).toFixed(1)}% drawdown</span>
               </div>
             </div>
-          ))}
+          );
+        })()}
+
+        {/* Top by Market Cap */}
+        <div className="bg-bg-primary rounded-lg p-3 border border-border-subtle flex flex-col flex-1 min-w-0 overflow-hidden">
+          <h3 className="text-text-secondary text-[10px] font-semibold uppercase tracking-wider mb-2">Top by Market Cap</h3>
+          <div className="space-y-1.5 flex-1 overflow-hidden">
+            {topCoins.slice(1).map((coin, i) => (
+              <div key={coin.id} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-text-secondary text-[10px] w-3 shrink-0">{i + 2}</span>
+                  <img src={coin.image} alt={coin.name} className="w-4 h-4 rounded-full shrink-0" />
+                  <span className="text-text-primary text-xs truncate">{coin.symbol.toUpperCase()}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-[10px] font-mono ${coin.price_change_percentage_24h >= 0 ? 'text-gain' : 'text-loss'}`}>
+                    {coin.price_change_percentage_24h >= 0 ? '+' : ''}{coin.price_change_percentage_24h?.toFixed(1)}%
+                  </span>
+                  <span className="font-mono text-xs text-text-primary">${(coin.market_cap / 1e9).toFixed(0)}B</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

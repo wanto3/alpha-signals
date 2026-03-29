@@ -31,6 +31,17 @@ interface PolymarketResponse {
 
 const POLYMARKET_API = 'https://clob.polymarket.com/markets';
 
+const CRYPTO_KEYWORDS = ['bitcoin', 'btc', 'ethereum', 'eth', 'crypto', 'solana', 'sol', 'dogecoin', 'xrp', 'cardano', 'ada', 'fed', 'rate', 'tariff', 'sec', 'etf', 'defi', 'nft', 'sbf', 'ftx', 'binance', 'stablecoin', 'yield', 'staking', 'layer', 'ordinal', 'runes', 'halving', 'whale', 'reserve', 'spot', 'blackrock', 'fidelity', 'grayscale', 'microstrategy', 'tesla', 'mass', 'index', 'bull', 'bear', 'recession', 'inflation', 'dollar', 'yuan', 'bonds', 'treasury'];
+const RELEVANCE_KEYWORDS = ['trump', 'election', 'economy', 'inflation', 'stock', 'market', 'oil', 'gold', 'finance', 'bank', 'fed', 'rate', 'tariff', 'regulatory', 'sec', 'cftc'];
+
+function getRelevance(question: string): number {
+  const q = question.toLowerCase();
+  let score = 0;
+  for (const k of CRYPTO_KEYWORDS) { if (q.includes(k)) score += 10; }
+  for (const k of RELEVANCE_KEYWORDS) { if (q.includes(k)) score += 3; }
+  return score;
+}
+
 export function usePredictions(refreshIntervalMs = 300000) {
   const [markets, setMarkets] = useState<PredictionMarket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +63,12 @@ export function usePredictions(refreshIntervalMs = 300000) {
           return hasYes && hasNo;
         })
         .filter(m => new Date(m.end_date_iso) > new Date())
+        .filter(m => getRelevance(m.question) > 0)
+        .sort((a, b) => {
+          const dateDiff = new Date(a.end_date_iso).getTime() - new Date(b.end_date_iso).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          return getRelevance(b.question) - getRelevance(a.question);
+        })
         .slice(0, 15)
         .map(m => {
           const yesToken = m.tokens.find(t => t.outcome.toLowerCase() === 'yes');
