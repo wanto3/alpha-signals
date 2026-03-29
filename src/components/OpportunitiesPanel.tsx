@@ -8,6 +8,9 @@ import {
   type SignalOutput,
 } from '../hooks/useSignalSynthesis';
 import { OpportunityCard } from './OpportunityCard';
+import { EtfFlowCard } from './EtfFlowCard';
+import { FdvRatioCard } from './FdvRatioCard';
+import { TokenUnlockCard } from './TokenUnlockCard';
 import type { Opportunity } from '../types';
 
 function calculateRSI(closes: number[], period = 14): number {
@@ -280,11 +283,17 @@ export function OpportunitiesPanel() {
   return (
     <div className="h-full overflow-y-auto px-2 py-2">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        {/* Institutional / macro signals */}
+        <EtfFlowCard />
+        <FdvRatioCard />
+        <TokenUnlockCard />
+
+        {/* Crypto asset signals */}
         {syntheses.map((item, idx) => (
           <OpportunityCard
             key={item.coinId}
             opportunity={item.opportunity}
-            index={idx}
+            index={idx + 3}
             synthesis={{
               score: item.synthesis.score,
               reasons: item.synthesis.reasons,
