@@ -1,4 +1,5 @@
 export type SignalType = 'buy' | 'sell' | 'hold';
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
 export interface Opportunity {
   id: string;

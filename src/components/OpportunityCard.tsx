@@ -1,9 +1,16 @@
-import { TrendingUp, TrendingDown, Minus, ArrowUpRight, ArrowDownRight, Activity, BarChart2 } from 'lucide-react';
-import type { Opportunity } from '../types';
+import { TrendingUp, TrendingDown, Minus, ArrowUpRight, ArrowDownRight, Activity, BarChart2, Zap } from 'lucide-react';
+import type { Opportunity, ConfidenceLevel } from '../types';
+
+interface SynthesisData {
+  score: number;
+  reasons: string[];
+  confidence: ConfidenceLevel;
+}
 
 interface Props {
   opportunity: Opportunity;
   index: number;
+  synthesis?: SynthesisData;
 }
 
 function formatPrice(price: number): string {
@@ -46,7 +53,7 @@ function SignalBadge({ signal }: { signal: Opportunity['signal'] }) {
   );
 }
 
-export function OpportunityCard({ opportunity, index }: Props) {
+export function OpportunityCard({ opportunity, index, synthesis }: Props) {
   const isPositive = opportunity.priceChange24h >= 0;
   const ChangeIcon = isPositive ? ArrowUpRight : ArrowDownRight;
   const changeColor = isPositive ? 'text-signal-buy' : 'text-signal-sell';
@@ -84,13 +91,40 @@ export function OpportunityCard({ opportunity, index }: Props) {
       </div>
 
       {/* Conviction Score */}
-      <div className="mb-4">
+      <div className="mb-3">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs text-gray-500 uppercase tracking-wider font-medium">Conviction</span>
           <span className="text-xs text-gray-500">{opportunity.updatedAt}</span>
         </div>
-        <ConvictionMeter score={opportunity.convictionScore} />
+        <ConvictionMeter score={synthesis?.score ?? opportunity.convictionScore} />
       </div>
+
+      {/* Signal Summary */}
+      {synthesis && synthesis.reasons.length > 0 && (
+        <div className="mb-3 bg-bg-primary rounded-lg p-3 border border-accent/20">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-accent uppercase tracking-wider flex items-center gap-1.5">
+              <Zap size={10} />
+              Signal Summary
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+              synthesis.confidence === 'high' ? 'bg-green-500/20 text-green-400' :
+              synthesis.confidence === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+              'bg-gray-500/20 text-gray-400'
+            }`}>
+              {synthesis.confidence.toUpperCase()} CONFIDENCE
+            </span>
+          </div>
+          <ul className="space-y-1">
+            {synthesis.reasons.slice(0, 3).map((r, i) => (
+              <li key={i} className="text-xs text-gray-400 flex items-start gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent mt-1.5 shrink-0" />
+                {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Reason */}
       <p className="text-sm text-gray-400 leading-relaxed mb-4 line-clamp-2">
