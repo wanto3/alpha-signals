@@ -9,6 +9,7 @@ import { TabPanel } from './components/TabPanel';
 import { StatsPanel } from './components/StatsPanel';
 import { IndicatorsPanel } from './components/IndicatorsPanel';
 import { NewsPanel } from './components/NewsPanel';
+import { PredictionsPanel } from './components/PredictionsPanel';
 import { AlertModal } from './components/AlertModal';
 import { Toast } from './components/Toast';
 import { getMarketCoins, getGlobalData, searchCoins } from './lib/coingecko';
@@ -76,6 +77,7 @@ function Dashboard() {
     { id: 'stats', label: 'Stats', component: <StatsPanel coins={coins} globalData={globalData} /> },
     { id: 'indicators', label: 'Indicators', component: <IndicatorsPanel /> },
     { id: 'news', label: 'News', component: <NewsPanel /> },
+    { id: 'predictions', label: 'Predictions', component: <PredictionsPanel /> },
   ];
 
   return (
