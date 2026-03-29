@@ -75,7 +75,11 @@ export function initializeDatabase(): void {
       bb_lower REAL,
       sma_20 REAL,
       ema_12 REAL,
-      ema_26 REAL
+      ema_26 REAL,
+      stoch_k REAL,
+      stoch_d REAL,
+      atr_14 REAL,
+      vwap REAL
     );
 
     CREATE INDEX IF NOT EXISTS idx_prices_asset_id ON prices(asset_id);
@@ -87,6 +91,21 @@ export function initializeDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_indicators_symbol_interval ON indicators(symbol, interval);
     CREATE INDEX IF NOT EXISTS idx_indicators_timestamp ON indicators(timestamp);
   `);
+
+  // Migration: add stoch/ATR/VWAP columns if they don't exist (for existing databases)
+  const addColumns = [
+    ['stoch_k', 'REAL'],
+    ['stoch_d', 'REAL'],
+    ['atr_14', 'REAL'],
+    ['vwap', 'REAL'],
+  ];
+  for (const [col, type] of addColumns) {
+    try {
+      db.exec(`ALTER TABLE indicators ADD COLUMN ${col} ${type}`);
+    } catch (_err) {
+      // Column already exists — safe to ignore
+    }
+  }
 
   // Seed some initial assets if the table is empty
   const count = db.prepare('SELECT COUNT(*) as c FROM assets').get() as { c: number };
@@ -100,6 +119,21 @@ export function initializeDatabase(): void {
       ['SOL', 'Solana', 'crypto'],
       ['DOGE', 'Dogecoin', 'crypto'],
       ['XRP', 'Ripple', 'crypto'],
+      ['LINK', 'Chainlink', 'crypto'],
+      ['ADA', 'Cardano', 'crypto'],
+      ['ARB', 'Arbitrum', 'crypto'],
+      ['MATIC', 'Polygon', 'crypto'],
+      ['AVAX', 'Avalanche', 'crypto'],
+      ['DOT', 'Polkadot', 'crypto'],
+      ['UNI', 'Uniswap', 'crypto'],
+      ['OP', 'Optimism', 'crypto'],
+      ['NEAR', 'NEAR Protocol', 'crypto'],
+      ['INJ', 'Injective', 'crypto'],
+      ['TIA', 'Celestia', 'crypto'],
+      ['SEI', 'Sei', 'crypto'],
+      ['WLD', 'Worldcoin', 'crypto'],
+      ['JUP', 'Jupiter', 'crypto'],
+      ['PYTH', 'Pyth Network', 'crypto'],
     ];
     const insertMany = db.transaction(() => {
       for (const [symbol, name, type] of seedAssets) {
