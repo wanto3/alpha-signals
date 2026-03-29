@@ -12,6 +12,7 @@ import { NewsPanel } from './components/NewsPanel';
 import { PredictionsPanel } from './components/PredictionsPanel';
 import { OpportunitiesPanel } from './components/OpportunitiesPanel';
 import { AlertModal } from './components/AlertModal';
+import { FearBanner } from './components/FearBanner';
 import { Toast } from './components/Toast';
 import { getMarketCoins, getGlobalData, searchCoins } from './lib/coingecko';
 import type { CoinMarket, GlobalData } from './lib/coingecko';
@@ -94,6 +95,8 @@ function Dashboard() {
         searchResults={searchResults}
         onSelectCoin={handleSelectCoin}
       />
+
+      <FearBanner />
 
       <div className="flex flex-1 overflow-hidden">
         <Watchlist

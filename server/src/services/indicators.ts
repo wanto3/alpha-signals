@@ -249,3 +249,23 @@ export function computeIndicatorsFromPrices(prices: number[], symbol: string, in
     vwap: null,
   };
 }
+
+/**
+ * Compute rolling indicator snapshots at each candle close time.
+ * Stores a snapshot of all computed indicators for every valid time step.
+ * MACD needs the most data: slow EMA (26) + signal (9) = 35 candles minimum.
+ */
+export function computeIndicatorsRolling(candles: CandleData[], interval: string): Indicators[] {
+  const MIN_CANDLES = 35; // MACD slow (26) + signal (9) requires 35+ candles
+  const snapshots: Indicators[] = [];
+
+  for (let i = MIN_CANDLES - 1; i < candles.length; i++) {
+    const subset = candles.slice(0, i + 1);
+    const indicators = computeIndicators(subset, interval);
+    // Attach the candle time for historical tracking
+    (indicators as Indicators & { candle_time: number }).candle_time = candles[i].closeTime;
+    snapshots.push(indicators);
+  }
+
+  return snapshots;
+}

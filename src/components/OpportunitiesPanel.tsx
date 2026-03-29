@@ -11,6 +11,8 @@ import { OpportunityCard } from './OpportunityCard';
 import { EtfFlowCard } from './EtfFlowCard';
 import { FdvRatioCard } from './FdvRatioCard';
 import { TokenUnlockCard } from './TokenUnlockCard';
+import { MvrvCard } from './MvrvCard';
+import { PiCycleCard } from './PiCycleCard';
 import type { Opportunity } from '../types';
 
 function calculateRSI(closes: number[], period = 14): number {
@@ -287,6 +289,8 @@ export function OpportunitiesPanel() {
         <EtfFlowCard />
         <FdvRatioCard />
         <TokenUnlockCard />
+        <MvrvCard />
+        <PiCycleCard />
 
         {/* Crypto asset signals */}
         {syntheses.map((item, idx) => (
