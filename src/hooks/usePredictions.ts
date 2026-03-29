@@ -38,14 +38,20 @@ export function usePredictions(refreshIntervalMs = 300000) {
 
   const fetchMarkets = useCallback(async () => {
     try {
-      const res = await fetch(`${POLYMARKET_API}?closed=false&active=true&limit=20`, {
+      const res = await fetch(`${POLYMARKET_API}?closed=false&active=true&limit=50`, {
         headers: { 'Accept': 'application/json' },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: PolymarketResponse = await res.json();
 
       const items: PredictionMarket[] = json.data
-        .filter(m => m.tokens && m.tokens.length >= 2)
+        .filter(m => !m.closed && m.tokens && m.tokens.length >= 2)
+        .filter(m => {
+          const hasYes = m.tokens.some(t => t.outcome.toLowerCase() === 'yes');
+          const hasNo = m.tokens.some(t => t.outcome.toLowerCase() === 'no');
+          return hasYes && hasNo;
+        })
+        .filter(m => new Date(m.end_date_iso) > new Date())
         .slice(0, 15)
         .map(m => {
           const yesToken = m.tokens.find(t => t.outcome.toLowerCase() === 'yes');
