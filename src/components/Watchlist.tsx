@@ -11,7 +11,7 @@ interface WatchlistProps {
 
 function MiniSparkline({ data, positive }: { data: number[]; positive: boolean }) {
   if (!data || data.length < 2) return null;
-  const w = 60, h = 24;
+  const w = 48, h = 24;
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
@@ -31,7 +31,7 @@ export function Watchlist({ coins, favorites, onToggleFavorite }: WatchlistProps
   const { selectedCoinId, setSelectedCoinId } = useCoin();
 
   return (
-    <div className="w-60 bg-bg-surface border-r border-border-subtle flex flex-col shrink-0 overflow-hidden">
+    <div className="min-w-[280px] bg-bg-surface border-r border-border-subtle flex flex-col shrink-0 overflow-hidden">
       <div className="px-3 py-2 border-b border-border-subtle">
         <h2 className="text-text-secondary text-xs font-semibold uppercase tracking-wider">Watchlist</h2>
       </div>
@@ -53,6 +53,7 @@ export function Watchlist({ coins, favorites, onToggleFavorite }: WatchlistProps
                 <div className="flex items-center gap-2 min-w-0">
                   <img src={coin.image} alt={coin.name} className="w-5 h-5 rounded-full shrink-0" />
                   <span className="text-text-primary text-sm font-medium truncate">{coin.symbol.toUpperCase()}</span>
+                  <span className="text-xs text-text-secondary truncate">{coin.name}</span>
                 </div>
                 <button
                   onClick={e => { e.stopPropagation(); onToggleFavorite(coin.id); }}

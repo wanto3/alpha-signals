@@ -1,4 +1,4 @@
-const BINANCE_BASE = process.env.BINANCE_API_URL || 'https://testnet.binance.vision/api/v3';
+const BINANCE_BASE = process.env.BINANCE_API_URL || 'https://api.binance.com/api/v3';
 
 interface BinanceTicker {
   symbol: string;

@@ -10,7 +10,9 @@ import { StatsPanel } from './components/StatsPanel';
 import { IndicatorsPanel } from './components/IndicatorsPanel';
 import { NewsPanel } from './components/NewsPanel';
 import { PredictionsPanel } from './components/PredictionsPanel';
+import { OpportunitiesPanel } from './components/OpportunitiesPanel';
 import { AlertModal } from './components/AlertModal';
+import { FearBanner } from './components/FearBanner';
 import { Toast } from './components/Toast';
 import { getMarketCoins, getGlobalData, searchCoins } from './lib/coingecko';
 import type { CoinMarket, GlobalData } from './lib/coingecko';
@@ -74,6 +76,7 @@ function Dashboard() {
   const ethCoin = coins.find(c => c.id === 'ethereum');
 
   const tabs = [
+    { id: 'opportunities', label: 'Opportunities', component: <OpportunitiesPanel /> },
     { id: 'stats', label: 'Stats', component: <StatsPanel coins={coins} globalData={globalData} /> },
     { id: 'indicators', label: 'Indicators', component: <IndicatorsPanel /> },
     { id: 'news', label: 'News', component: <NewsPanel /> },
@@ -93,6 +96,8 @@ function Dashboard() {
         onSelectCoin={handleSelectCoin}
       />
 
+      <FearBanner />
+
       <div className="flex flex-1 overflow-hidden">
         <Watchlist
           coins={coins}
@@ -102,12 +107,12 @@ function Dashboard() {
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 min-h-0">
+          <div className="flex-[3] min-h-0">
             <CandlestickChart key={selectedCoinId} />
           </div>
 
           {selectedCoin && (
-            <div className="h-32 shrink-0 border-t border-border-subtle bg-bg-surface">
+            <div className="flex-[2] shrink-0 border-t border-border-subtle bg-bg-surface overflow-hidden">
               <TabPanel tabs={tabs} />
             </div>
           )}

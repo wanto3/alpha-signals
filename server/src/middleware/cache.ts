@@ -1,3 +1,5 @@
+import type { Request, Response } from 'express';
+
 interface CacheEntry<T> {
   data: T;
   expires: number;
@@ -24,7 +26,7 @@ export function invalidate(key: string): void {
 }
 
 export function cacheMiddleware<T>(
-  ttlSeconds: number,
+  _ttlSeconds: number,
   keyFn: (req: Request) => string
 ): (req: Request, res: Response, next: () => void) => void {
   return (req: Request, _res: Response, next: () => void) => {
@@ -38,13 +40,9 @@ export function cacheMiddleware<T>(
 }
 
 export function setCachedResponse<T>(req: Request, res: Response, data: T, ttlSeconds: number): void {
-  const key = cacheKeyFromReq(req);
+  const key = `${req.url}`;
   set(key, data, ttlSeconds);
   res.json(data);
-}
-
-function cacheKeyFromReq(req: Request): string {
-  return `${req.url}`;
 }
 
 // Periodic cleanup of expired entries

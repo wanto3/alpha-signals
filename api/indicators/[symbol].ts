@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { cacheGet, cacheSet } from '../cache.js';
 
 const COINGECKO_IDS: Record<string, string> = {
   BTC: 'bitcoin',
@@ -13,6 +14,37 @@ const COINGECKO_IDS: Record<string, string> = {
   AVAX: 'avalanche-2',
   DOT: 'polkadot',
   UNI: 'uniswap',
+  OP: 'optimism',
+  NEAR: 'near',
+  INJ: 'injective-protocol',
+  TIA: 'celestia',
+  SEI: 'sei-network',
+  WLD: 'worldcoin-wld',
+  JUP: 'jupiter-agave',
+  PYTH: 'pyth-network',
+  AXL: 'axelar',
+  DYM: 'dymension',
+  JASMY: 'jasmycoin',
+  STRK: 'starknet',
+  SUI: 'sui',
+  APT: 'aptos',
+  AAVE: 'aave',
+  MKR: 'maker',
+  CRV: 'curve-dao-token',
+  GMX: 'gmx',
+  RENDER: 'render-token',
+  FIL: 'filecoin',
+  ICP: 'internet-computer',
+  STX: 'blockstack',
+  ALGO: 'algorand',
+  VET: 'vechain',
+  THETA: 'theta-token',
+  APE: 'apecoin',
+  FLOW: 'flow',
+  CHZ: 'chiliz',
+  ENJ: 'enjincoin',
+  ZIL: 'zilliqa',
+  ENS: 'ethereum-name-service',
 };
 
 function computeRSI(closes: number[], period = 14): number | null {
@@ -64,6 +96,51 @@ function computeBB(closes: number[], period = 20) {
   return { upper: sma + 2 * stdDev, middle: sma, lower: sma - 2 * stdDev };
 }
 
+function computeStochastic(candles: number[][], period = 14): { k: number | null; d: number | null } {
+  // candles: [timestamp, open, high, low, close]
+  if (candles.length < period) return { k: null, d: null };
+  const slice = candles.slice(-period);
+  const highs = slice.map(c => c[2]); // high
+  const lows = slice.map(c => c[3]);  // low
+  const close = slice[slice.length - 1][4];
+  const high = Math.max(...highs);
+  const low = Math.min(...lows);
+  if (high === low) return { k: 50, d: null };
+  const k = ((close - low) / (high - low)) * 100;
+  // Calculate %K values for last 3 bars to compute %D
+  if (candles.length < period + 2) return { k: Math.round(k * 100) / 100, d: null };
+  const kValues: number[] = [];
+  for (let i = period - 1; i < candles.length; i++) {
+    const window = candles.slice(i - period + 1, i + 1);
+    const h = Math.max(...window.map(c => c[2]));
+    const l = Math.min(...window.map(c => c[3]));
+    const cVal = candles[i][4];
+    kValues.push(h === l ? 50 : ((cVal - l) / (h - l)) * 100);
+  }
+  const d = kValues.slice(-3).reduce((a, b) => a + b, 0) / 3;
+  return { k: Math.round(k * 100) / 100, d: Math.round(d * 100) / 100 };
+}
+
+function computeATR(candles: number[][], period = 14): number | null {
+  // candles: [timestamp, open, high, low, close]
+  if (candles.length < period + 1) return null;
+  const trueRanges: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const high = candles[i][2];
+    const low = candles[i][3];
+    const prevClose = candles[i - 1][4];
+    const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+    trueRanges.push(tr);
+  }
+  if (trueRanges.length < period) return null;
+  // Wilder's smoothing
+  let atr = trueRanges.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < trueRanges.length; i++) {
+    atr = (atr * (period - 1) + trueRanges[i]) / period;
+  }
+  return Math.round(atr * 100) / 100;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
@@ -98,6 +175,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
   const days = daysMap[interval] ?? 30;
 
+  // Check in-memory cache first (5 minute TTL)
+  const cacheKey = `indicators:${symbol}:${interval}`;
+  const cached = cacheGet<Record<string, number | null>>(cacheKey);
+  if (cached) {
+    res.json({
+      data: {
+        symbol,
+        interval,
+        timestamp: Date.now(),
+        ...cached,
+        _fromCache: true,
+      },
+    });
+    return;
+  }
+
   const url = `https://api.coingecko.com/api/v3/coins/${coinId}/ohlc?vs_currency=usd&days=${days}`;
 
   let candles: number[][] = [];
@@ -118,6 +211,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     rsi_14: null, macd_line: null, macd_signal: null, macd_histogram: null,
     bb_upper: null, bb_middle: null, bb_lower: null, sma_20: null,
     ema_12: null, ema_26: null,
+    stoch_k: null, stoch_d: null, atr_14: null,
+    vwap: null, // requires volume — use /api/candles endpoint with Binance for VWAP
   };
 
   if (closes.length > 0) {
@@ -138,6 +233,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (closes.length >= 20) {
       indicators.sma_20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
     }
+    if (candles.length > 0) {
+      const stoch = computeStochastic(candles, 14);
+      indicators.stoch_k = stoch.k;
+      indicators.stoch_d = stoch.d;
+      const atr = computeATR(candles, 14);
+      indicators.atr_14 = atr;
+    }
+
+    // Cache the computed indicators for 5 minutes
+    cacheSet(cacheKey, indicators, 300);
   }
 
   res.json({

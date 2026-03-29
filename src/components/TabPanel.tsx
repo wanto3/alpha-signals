@@ -30,7 +30,7 @@ export function TabPanel({ tabs }: TabPanelProps) {
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-hidden p-2">
         {tabs.find(t => t.id === activeTab)?.component}
       </div>
     </div>

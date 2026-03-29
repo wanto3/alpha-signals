@@ -1,3 +1,5 @@
+import type { Request, Response } from 'express';
+
 interface RateLimitEntry {
   count: number;
   resetAt: number;
@@ -12,8 +14,9 @@ export interface RateLimitConfig {
 
 export function rateLimit(config: RateLimitConfig) {
   return (req: Request, res: Response, next: () => void): void => {
-    const ip = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]
-      ?? req.headers['x-real-ip'] as string
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = (typeof forwarded === 'string' ? forwarded.split(',')[0] : forwarded?.[0])
+      ?? req.headers['x-real-ip']
       ?? 'unknown';
     const key = `rl:${ip}`;
     const now = Date.now();
