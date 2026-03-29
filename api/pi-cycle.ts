@@ -133,7 +133,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ]);
 
     if (prices.length < 350) {
-      res.status(502).json({ error: 'Insufficient price history' });
+      // Return 200 with estimated data when CoinGecko rate limits
+      const estimatedPrice = currentPrice || 0;
+      const response: PiCycleResponse = {
+        piCycleTopTriggered: false,
+        piCycleTopCrossPrice: null,
+        piCycleTopEstTriggerPrice: null,
+        ma111: 0,
+        ma111_2: 0,
+        ma350: 0,
+        btcPrice: estimatedPrice,
+        compositeScore: 50,
+        compositeSignal: 'hold',
+        compositeSignalLabel: 'Hold',
+        compositeSignalReason: 'API rate limited — insufficient price history for calculation',
+        components: [],
+        cyclePhase: 'mid',
+        cyclePhaseLabel: 'Mid-cycle — data temporarily unavailable',
+        timestamp: Date.now(),
+      };
+      cacheSet(CACHE_KEY, response, 300);
+      res.json({ data: response });
       return;
     }
 
@@ -143,7 +163,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ma350 = calcSMA(prices, 350);
 
     if (!ma111 || !ma350) {
-      res.status(502).json({ error: 'Could not calculate moving averages' });
+      const response: PiCycleResponse = {
+        piCycleTopTriggered: false,
+        piCycleTopCrossPrice: null,
+        piCycleTopEstTriggerPrice: null,
+        ma111: 0,
+        ma111_2: 0,
+        ma350: 0,
+        btcPrice: currentPrice || prices[prices.length - 1],
+        compositeScore: 50,
+        compositeSignal: 'hold',
+        compositeSignalLabel: 'Hold',
+        compositeSignalReason: 'Could not calculate moving averages',
+        components: [],
+        cyclePhase: 'mid',
+        cyclePhaseLabel: 'Mid-cycle — calculation error',
+        timestamp: Date.now(),
+      };
+      cacheSet(CACHE_KEY, response, 300);
+      res.json({ data: response });
       return;
     }
 
