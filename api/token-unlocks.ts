@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { cacheGet, cacheSet } from './cache.js';
 
 // Known upcoming token unlock schedules (curated from public data)
 // In production, this would be fetched from TokenUnlocks.io or CryptoRank API
@@ -16,26 +17,26 @@ interface UnlockSchedule {
 
 // These are representative upcoming unlocks — in production, pull from TokenUnlocks.io
 const UNLOCK_SCHEDULES: UnlockSchedule[] = [
-  // SOL — April 2025 unlock (representative)
-  { id: 'solana', symbol: 'SOL', name: 'Solana', nextUnlockDate: '2025-04-01', unlockAmountUsd: 142_000_000, unlockAmountTokens: 2_480_000, totalSupply: 580_000_000, vestingType: 'linear', vcCostBasis: 0.022 },
+  // SOL — April 2026 unlock (representative)
+  { id: 'solana', symbol: 'SOL', name: 'Solana', nextUnlockDate: '2026-04-01', unlockAmountUsd: 142_000_000, unlockAmountTokens: 2_480_000, totalSupply: 580_000_000, vestingType: 'linear', vcCostBasis: 0.022 },
   // JUP — Jupiter Protocol quarterly
-  { id: 'jup', symbol: 'JUP', name: 'Jupiter', nextUnlockDate: '2025-04-05', unlockAmountUsd: 85_000_000, unlockAmountTokens: 95_000_000, totalSupply: 10_000_000_000, vestingType: 'cliff', vcCostBasis: 0.05 },
+  { id: 'jup', symbol: 'JUP', name: 'Jupiter', nextUnlockDate: '2026-04-05', unlockAmountUsd: 85_000_000, unlockAmountTokens: 95_000_000, totalSupply: 10_000_000_000, vestingType: 'cliff', vcCostBasis: 0.05 },
   // WLD — Worldcoin bi-weekly unlocks
-  { id: 'worldcoin', symbol: 'WLD', name: 'Worldcoin', nextUnlockDate: '2025-04-03', unlockAmountUsd: 12_000_000, unlockAmountTokens: 22_000_000, totalSupply: 5_000_000_000, vestingType: 'linear', vcCostBasis: 0.50 },
+  { id: 'worldcoin', symbol: 'WLD', name: 'Worldcoin', nextUnlockDate: '2026-04-03', unlockAmountUsd: 12_000_000, unlockAmountTokens: 22_000_000, totalSupply: 5_000_000_000, vestingType: 'linear', vcCostBasis: 0.50 },
   // DYM — Dymension token generation
-  { id: 'dymension', symbol: 'DYM', name: 'Dymension', nextUnlockDate: '2025-04-10', unlockAmountUsd: 28_000_000, unlockAmountTokens: 1_100_000_000, totalSupply: 10_000_000_000, vestingType: 'cliff', vcCostBasis: 0.15 },
+  { id: 'dymension', symbol: 'DYM', name: 'Dymension', nextUnlockDate: '2026-04-10', unlockAmountUsd: 28_000_000, unlockAmountTokens: 1_100_000_000, totalSupply: 10_000_000_000, vestingType: 'cliff', vcCostBasis: 0.15 },
   // SEI — Sei Network vesting
-  { id: 'sei-network', symbol: 'SEI', name: 'Sei', nextUnlockDate: '2025-04-15', unlockAmountUsd: 18_000_000, unlockAmountTokens: 180_000_000, totalSupply: 3_600_000_000, vestingType: 'linear', vcCostBasis: 0.10 },
+  { id: 'sei-network', symbol: 'SEI', name: 'Sei', nextUnlockDate: '2026-04-15', unlockAmountUsd: 18_000_000, unlockAmountTokens: 180_000_000, totalSupply: 3_600_000_000, vestingType: 'linear', vcCostBasis: 0.10 },
   // TIA — Celestia staking/validator rewards
-  { id: 'celestia', symbol: 'TIA', name: 'Celestia', nextUnlockDate: '2025-04-20', unlockAmountUsd: 22_000_000, unlockAmountTokens: 2_200_000, totalSupply: 1_000_000_000, vestingType: 'linear', vcCostBasis: 1.50 },
+  { id: 'celestia', symbol: 'TIA', name: 'Celestia', nextUnlockDate: '2026-04-20', unlockAmountUsd: 22_000_000, unlockAmountTokens: 2_200_000, totalSupply: 1_000_000_000, vestingType: 'linear', vcCostBasis: 1.50 },
   // JASMY — Jasmy IoT platform
-  { id: 'jasmycoin', symbol: 'JASMY', name: 'JasmyCoin', nextUnlockDate: '2025-04-07', unlockAmountUsd: 8_000_000, unlockAmountTokens: 500_000_000, totalSupply: 50_000_000_000, vestingType: 'linear', vcCostBasis: 0.005 },
+  { id: 'jasmycoin', symbol: 'JASMY', name: 'JasmyCoin', nextUnlockDate: '2026-04-07', unlockAmountUsd: 8_000_000, unlockAmountTokens: 500_000_000, totalSupply: 50_000_000_000, vestingType: 'linear', vcCostBasis: 0.005 },
   // AXL — Axelar network
-  { id: 'axelar', symbol: 'AXL', name: 'Axelar', nextUnlockDate: '2025-04-25', unlockAmountUsd: 15_000_000, unlockAmountTokens: 12_500_000, totalSupply: 1_500_000_000, vestingType: 'cliff', vcCostBasis: 0.25 },
+  { id: 'axelar', symbol: 'AXL', name: 'Axelar', nextUnlockDate: '2026-04-25', unlockAmountUsd: 15_000_000, unlockAmountTokens: 12_500_000, totalSupply: 1_500_000_000, vestingType: 'cliff', vcCostBasis: 0.25 },
   // PYTH — Pyth Network
-  { id: 'pyth-network', symbol: 'PYTH', name: 'Pyth Network', nextUnlockDate: '2025-04-12', unlockAmountUsd: 35_000_000, unlockAmountTokens: 180_000_000, totalSupply: 10_000_000_000, vestingType: 'cliff', vcCostBasis: 0.04 },
+  { id: 'pyth-network', symbol: 'PYTH', name: 'Pyth Network', nextUnlockDate: '2026-04-12', unlockAmountUsd: 35_000_000, unlockAmountTokens: 180_000_000, totalSupply: 10_000_000_000, vestingType: 'cliff', vcCostBasis: 0.04 },
   // ALT — Altlayer
-  { id: 'altlayer', symbol: 'ALT', name: 'Altlayer', nextUnlockDate: '2025-04-18', unlockAmountUsd: 6_000_000, unlockAmountTokens: 75_000_000, totalSupply: 3_600_000_000, vestingType: 'linear', vcCostBasis: 0.03 },
+  { id: 'altlayer', symbol: 'ALT', name: 'Altlayer', nextUnlockDate: '2026-04-18', unlockAmountUsd: 6_000_000, unlockAmountTokens: 75_000_000, totalSupply: 3_600_000_000, vestingType: 'linear', vcCostBasis: 0.03 },
 ];
 
 interface TokenUnlock {
@@ -104,6 +105,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
+    return;
+  }
+
+  // Check in-memory cache first (2 hour TTL for unlock data)
+  const CACHE_KEY = 'coingecko:token-unlocks';
+  const cached = cacheGet<TokenUnlockResponse>(CACHE_KEY);
+  if (cached) {
+    res.json({ data: cached, _fromCache: true });
     return;
   }
 
@@ -237,6 +246,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       timestamp: Date.now(),
     };
 
+    cacheSet(CACHE_KEY, response, 7200);
     res.json({ data: response });
   } catch (err) {
     console.error('Token unlock API error:', err);

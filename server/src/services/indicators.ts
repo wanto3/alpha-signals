@@ -14,6 +14,10 @@ export interface Indicators {
   sma_20: number | null;
   ema_12: number | null;
   ema_26: number | null;
+  stoch_k: number | null;
+  stoch_d: number | null;
+  atr_14: number | null;
+  vwap: number | null;
 }
 
 function calcSMA(prices: number[], period: number): number | null {
@@ -108,6 +112,79 @@ function calcBollingerBands(prices: number[], period: number = 20, stdDev: numbe
   };
 }
 
+function calcStochastic(candles: CandleData[], period: number = 14): { k: number | null; d: number | null } {
+  if (candles.length < period) {
+    return { k: null, d: null };
+  }
+  const slice = candles.slice(-period);
+  const high = Math.max(...slice.map(c => c.high));
+  const low = Math.min(...slice.map(c => c.low));
+  const close = slice[slice.length - 1].close;
+
+  if (high === low) {
+    return { k: 50, d: null };
+  }
+  const k = ((close - low) / (high - low)) * 100;
+  // D is SMA of K over 3 periods
+  if (candles.length < period + 2) {
+    return { k: Math.round(k * 100) / 100, d: null };
+  }
+  // Calculate %K values for the last 3 bars
+  const kValues: number[] = [];
+  for (let i = period - 1; i < candles.length; i++) {
+    const window = candles.slice(i - period + 1, i + 1);
+    const h = Math.max(...window.map(c => c.high));
+    const l = Math.min(...window.map(c => c.low));
+    const cVal = candles[i].close;
+    kValues.push(h === l ? 50 : ((cVal - l) / (h - l)) * 100);
+  }
+  const d = kValues.slice(-3).reduce((a, b) => a + b, 0) / 3;
+  return {
+    k: Math.round(k * 100) / 100,
+    d: Math.round(d * 100) / 100,
+  };
+}
+
+function calcATR(candles: CandleData[], period: number = 14): number | null {
+  if (candles.length < period + 1) {
+    return null;
+  }
+  const trueRanges: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const high = candles[i].high;
+    const low = candles[i].low;
+    const prevClose = candles[i - 1].close;
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+    trueRanges.push(tr);
+  }
+  if (trueRanges.length < period) return null;
+  // Use Wilder's smoothing method (same as TradingView)
+  const recentTRs = trueRanges.slice(-period);
+  let atr = recentTRs.reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < trueRanges.length; i++) {
+    atr = (atr * (period - 1) + trueRanges[i]) / period;
+  }
+  return Math.round(atr * 100) / 100;
+}
+
+function calcVWAP(candles: CandleData[]): number | null {
+  if (candles.length === 0) return null;
+  let cumVP = 0;
+  let cumV = 0;
+  for (const c of candles) {
+    const typicalPrice = (c.high + c.low + c.close) / 3;
+    const volume = c.volume;
+    cumVP += typicalPrice * volume;
+    cumV += volume;
+  }
+  if (cumV === 0) return null;
+  return Math.round((cumVP / cumV) * 100) / 100;
+}
+
 export function computeIndicators(candles: CandleData[], interval: string): Indicators {
   const closes = candles.map(c => c.close);
   const symbol = candles[0]?.symbol ?? '';
@@ -119,6 +196,9 @@ export function computeIndicators(candles: CandleData[], interval: string): Indi
   const sma = calcSMA(closes, 20);
   const ema12 = calcEMA(closes, 12);
   const ema26 = calcEMA(closes, 26);
+  const stoch = calcStochastic(candles, 14);
+  const atr = calcATR(candles, 14);
+  const vwap = calcVWAP(candles);
 
   return {
     symbol,
@@ -134,6 +214,10 @@ export function computeIndicators(candles: CandleData[], interval: string): Indi
     sma_20: sma,
     ema_12: ema12,
     ema_26: ema26,
+    stoch_k: stoch.k,
+    stoch_d: stoch.d,
+    atr_14: atr,
+    vwap,
   };
 }
 
@@ -159,5 +243,9 @@ export function computeIndicatorsFromPrices(prices: number[], symbol: string, in
     sma_20: sma,
     ema_12: ema12,
     ema_26: ema26,
+    stoch_k: null, // requires high/low/volume — use computeIndicators with candles
+    stoch_d: null,
+    atr_14: null,
+    vwap: null,
   };
 }

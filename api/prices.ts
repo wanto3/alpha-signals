@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { cacheGet, cacheSet } from './cache.js';
 
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 
@@ -44,7 +45,14 @@ interface TickerData {
   timestamp: number;
 }
 
+const CACHE_KEY = 'coingecko:prices';
+const CACHE_TTL = 60; // 1 minute — CoinGecko free tier is ~10-30 calls/min
+
 async function fetchPrices(): Promise<TickerData[]> {
+  // Check cache first
+  const cached = cacheGet<TickerData[]>(CACHE_KEY);
+  if (cached) return cached;
+
   const ids = TRACKED_SYMBOLS.map(s => COINGECKO_IDS[s]).join(',');
   const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h`;
 
@@ -56,7 +64,7 @@ async function fetchPrices(): Promise<TickerData[]> {
     if (!res.ok) return [];
     const data = (await res.json()) as CoinGeckoMarket[];
 
-    return data.map(coin => {
+    const result: TickerData[] = data.map(coin => {
       const symbolKey = Object.entries(COINGECKO_IDS).find(([, v]) => v === coin.id)?.[0] ?? coin.symbol.toUpperCase();
       return {
         symbol: symbolKey,
@@ -67,6 +75,9 @@ async function fetchPrices(): Promise<TickerData[]> {
         timestamp: Date.now(),
       };
     });
+
+    cacheSet(CACHE_KEY, result, CACHE_TTL);
+    return result;
   } catch {
     return [];
   }

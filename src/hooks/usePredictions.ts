@@ -1,90 +1,63 @@
 import { useState, useEffect, useCallback } from 'react';
 
+export interface PredictionOutcome {
+  label: string;
+  price: number;
+  probabilityPercent: number;
+}
+
 export interface PredictionMarket {
   id: string;
   question: string;
-  yesPrice: number;
-  noPrice: number;
+  summary: string;
+  outcomes: PredictionOutcome[];
+  volume24h: number;
+  volume7d: number;
+  totalVolume: number;
+  liquidity: number;
   endDate: string;
-  closed: boolean;
-  slug: string;
+  resolved: boolean;
+  winner: string | null;
+  categories: string[];
+  sentiment: 'bullish' | 'bearish' | 'neutral' | 'uncertain';
+  sentimentScore: number;
+  cryptoSignal: 'buy' | 'sell' | 'hold' | 'n/a';
+  signalReason: string;
+  lastUpdated: string;
 }
 
-interface PolymarketToken {
-  outcome: string;
-  price: number;
-  winner: boolean;
+export interface PolymarketData {
+  markets: PredictionMarket[];
+  overallSignal: 'bullish' | 'bearish' | 'neutral';
+  signalReason: string;
+  bullishCount: number;
+  bearishCount: number;
+  cryptoRelevantCount: number;
+  totalVolume: number;
+  timestamp: number;
 }
 
-interface PolymarketMarket {
-  question_id: string;
-  question: string;
-  tokens: PolymarketToken[];
-  end_date_iso: string;
-  closed: boolean;
-  market_slug: string;
-}
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
-interface PolymarketResponse {
-  data: PolymarketMarket[];
-}
-
-const POLYMARKET_API = 'https://clob.polymarket.com/markets';
-
-const CRYPTO_KEYWORDS = ['bitcoin', 'btc', 'ethereum', 'eth', 'crypto', 'solana', 'sol', 'dogecoin', 'xrp', 'cardano', 'ada', 'fed', 'rate', 'tariff', 'sec', 'etf', 'defi', 'nft', 'sbf', 'ftx', 'binance', 'stablecoin', 'yield', 'staking', 'layer', 'ordinal', 'runes', 'halving', 'whale', 'reserve', 'spot', 'blackrock', 'fidelity', 'grayscale', 'microstrategy', 'tesla', 'mass', 'index', 'bull', 'bear', 'recession', 'inflation', 'dollar', 'yuan', 'bonds', 'treasury'];
-const RELEVANCE_KEYWORDS = ['trump', 'election', 'economy', 'inflation', 'stock', 'market', 'oil', 'gold', 'finance', 'bank', 'fed', 'rate', 'tariff', 'regulatory', 'sec', 'cftc'];
-
-function getRelevance(question: string): number {
-  const q = question.toLowerCase();
-  let score = 0;
-  for (const k of CRYPTO_KEYWORDS) { if (q.includes(k)) score += 10; }
-  for (const k of RELEVANCE_KEYWORDS) { if (q.includes(k)) score += 3; }
-  return score;
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}/api${path}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(body.error || body.details || `HTTP ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as T;
 }
 
 export function usePredictions(refreshIntervalMs = 300000) {
-  const [markets, setMarkets] = useState<PredictionMarket[]>([]);
+  const [data, setData] = useState<PolymarketData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMarkets = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(`${POLYMARKET_API}?closed=false&active=true&limit=50`, {
-        headers: { 'Accept': 'application/json' },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json: PolymarketResponse = await res.json();
-
-      const items: PredictionMarket[] = json.data
-        .filter(m => !m.closed && m.tokens && m.tokens.length >= 2)
-        .filter(m => {
-          const hasYes = m.tokens.some(t => t.outcome.toLowerCase() === 'yes');
-          const hasNo = m.tokens.some(t => t.outcome.toLowerCase() === 'no');
-          return hasYes && hasNo;
-        })
-        .filter(m => new Date(m.end_date_iso) > new Date())
-        .filter(m => getRelevance(m.question) > 0)
-        .sort((a, b) => {
-          const dateDiff = new Date(a.end_date_iso).getTime() - new Date(b.end_date_iso).getTime();
-          if (dateDiff !== 0) return dateDiff;
-          return getRelevance(b.question) - getRelevance(a.question);
-        })
-        .slice(0, 15)
-        .map(m => {
-          const yesToken = m.tokens.find(t => t.outcome.toLowerCase() === 'yes');
-          const noToken = m.tokens.find(t => t.outcome.toLowerCase() === 'no');
-          return {
-            id: m.question_id,
-            question: m.question,
-            yesPrice: yesToken?.price ?? 0,
-            noPrice: noToken?.price ?? 0,
-            endDate: m.end_date_iso,
-            closed: m.closed,
-            slug: m.market_slug,
-          };
-        });
-
-      setMarkets(items);
+      const result = await apiFetch<PolymarketData>('/polymarket');
+      setData(result);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch prediction markets');
@@ -94,10 +67,21 @@ export function usePredictions(refreshIntervalMs = 300000) {
   }, []);
 
   useEffect(() => {
-    fetchMarkets();
-    const interval = setInterval(fetchMarkets, refreshIntervalMs);
+    fetchData();
+    const interval = setInterval(fetchData, refreshIntervalMs);
     return () => clearInterval(interval);
-  }, [fetchMarkets, refreshIntervalMs]);
+  }, [fetchData, refreshIntervalMs]);
 
-  return { markets, loading, error, refetch: fetchMarkets };
+  return {
+    data,
+    markets: data?.markets ?? [],
+    overallSignal: data?.overallSignal ?? 'neutral',
+    signalReason: data?.signalReason ?? '',
+    bullishCount: data?.bullishCount ?? 0,
+    bearishCount: data?.bearishCount ?? 0,
+    cryptoRelevantCount: data?.cryptoRelevantCount ?? 0,
+    loading,
+    error,
+    refetch: fetchData,
+  };
 }

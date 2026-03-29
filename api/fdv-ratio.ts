@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { cacheGet, cacheSet } from './cache.js';
 
 interface CoinGeckoMarket {
   id: string;
@@ -56,6 +57,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
+    return;
+  }
+
+  // Check in-memory cache first (1 hour TTL for FDV data)
+  const CACHE_KEY = 'coingecko:fdv-ratio';
+  const cached = cacheGet<FdvRatioResponse>(CACHE_KEY);
+  if (cached) {
+    res.json({ data: cached, _fromCache: true });
     return;
   }
 
@@ -150,6 +159,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       timestamp: Date.now(),
     };
 
+    cacheSet(CACHE_KEY, response, 3600);
     res.json({ data: response });
   } catch (err) {
     console.error('FDV ratio API error:', err);

@@ -38,6 +38,10 @@ export interface IndicatorRow {
   sma_20: number | null;
   ema_12: number | null;
   ema_26: number | null;
+  stoch_k: number | null;
+  stoch_d: number | null;
+  atr_14: number | null;
+  vwap: number | null;
 }
 
 export function createTables(db: Database.Database): void {
@@ -82,6 +86,10 @@ export function createTables(db: Database.Database): void {
       sma_20 REAL,
       ema_12 REAL,
       ema_26 REAL,
+      stoch_k REAL,
+      stoch_d REAL,
+      atr_14 REAL,
+      vwap REAL,
       UNIQUE(symbol, interval, timestamp)
     );
 
